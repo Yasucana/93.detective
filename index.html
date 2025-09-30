@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 93: Detective - Solve Crimes with AI</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #ffcc00;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        #game-container {
+            width: 800px;
+            background-color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+        #clue-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .clue {
+            background-color: #444;
+            padding: 10px;
+            border: 1px solid #666;
+            cursor: grab;
+            user-select: none;
+        }
+        #deduction-area {
+            background-color: #222;
+            min-height: 150px;
+            padding: 10px;
+            border: 2px dashed #888;
+            margin-bottom: 20px;
+        }
+        #ai-analysis {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        #chat-interface {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        #messages {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        #suspect-select, #share-input {
+            margin-right: 10px;
+            padding: 5px;
+        }
+        button {
+            background-color: #ffcc00;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #e6b800;
+        }
+        #result {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        /* Drag and drop styles */
+        .dragging {
+            opacity: 0.5;
+        }
+        .over {
+            border-color: #ffcc00;
+        }
+    </style>
+</head>
+<body>
+    <h1>Detective: Solve Crimes with AI</h1>
+    <div id="game-container">
+        <p>Investigate the mystery of the stolen artifact in a shadowy Victorian city. Collect clues, share with suspects, and use AI to deduce the culprit.</p>
+        
+        <h2>Clue Board</h2>
+        <div id="clue-board"></div>
+        
+        <h2>Deduction Area (Drag clues here)</h2>
+        <div id="deduction-area"></div>
+        
+        <button id="analyze-btn">Analyze with AI</button>
+        <div id="ai-analysis"></div>
+        
+        <h2>Suspect Chat</h2>
+        <div id="chat-interface">
+            <div id="messages"></div>
+            <select id="suspect-select">
+                <option value="suspect1">Lord Harrington</option>
+                <option value="suspect2">Lady Eliza</option>
+                <option value="suspect3">Professor Thorne</option>
+                <option value="suspect4">Maid Rosalind</option>
+            </select>
+            <input type="text" id="share-input" placeholder="Share a clue (e.g., footprint)">
+            <button id="share-btn">Share Clue</button>
+        </div>
+        
+        <button id="solve-btn">Solve the Case</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Game Data
+        const clues = [
+            { id: 'footprint', text: 'Muddy Footprint', connection: 'suspect1' },
+            { id: 'letter', text: 'Torn Letter', connection: 'suspect2' },
+            { id: 'poison', text: 'Empty Vial', connection: 'suspect3' },
+            { id: 'glove', text: 'Lost Glove', connection: 'suspect4' },
+            { id: 'alibi', text: 'False Alibi Note', connection: 'suspect2' },
+            { id: 'witness', text: 'Witness Statement', connection: 'suspect3' }
+        ];
+
+        const suspects = {
+            suspect1: { name: 'Lord Harrington', responses: {
+                footprint: 'That could be anyone\'s. I was at the ball all night.',
+                letter: 'I\'ve never seen that before...',
+                default: 'I have nothing to hide.'
+            }, guilty: false },
+            suspect2: { name: 'Lady Eliza', responses: {
+                letter: 'That\'s not mine! Someone is framing me.',
+                alibi: 'My alibi is solid... or is it?',
+                default: 'Ask someone else.'
+            }, guilty: true },
+            suspect3: { name: 'Professor Thorne', responses: {
+                poison: 'Vials? I use them for experiments, nothing more.',
+                witness: 'That witness is unreliable.',
+                default: 'Science will prove my innocence.'
+            }, guilty: false },
+            suspect4: { name: 'Maid Rosalind', responses: {
+                glove: 'I lost my glove while cleaning.',
+                default: 'I saw nothing unusual.'
+            }, guilty: false }
+        };
+
+        const correctDeduction = ['letter', 'alibi']; // Clues pointing to guilty suspect
+
+        // Initialize Clue Board
+        const clueBoard = document.getElementById('clue-board');
+        clues.forEach(clue => {
+            const div = document.createElement('div');
+            div.className = 'clue';
+            div.textContent = clue.text;
+            div.dataset.id = clue.id;
+            div.draggable = true;
+            div.addEventListener('dragstart', dragStart);
+            clueBoard.appendChild(div);
+        });
+
+        const deductionArea = document.getElementById('deduction-area');
+        deductionArea.addEventListener('dragover', dragOver);
+        deductionArea.addEventListener('drop', drop);
+        deductionArea.addEventListener('dragenter', dragEnter);
+        deductionArea.addEventListener('dragleave', dragLeave);
+
+        // Drag and Drop Functions
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.dataset.id);
+            setTimeout(() => this.classList.add('dragging'), 0);
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text/plain');
+            const clue = clues.find(c => c.id === id);
+            if (clue) {
+                const div = document.createElement('div');
+                div.className = 'clue';
+                div.textContent = clue.text;
+                div.dataset.id = id;
+                deductionArea.appendChild(div);
+            }
+            this.classList.remove('over');
+        }
+
+        function dragEnter(e) {
+            e.preventDefault();
+            this.classList.add('over');
+        }
+
+        function dragLeave() {
+            this.classList.remove('over');
+        }
+
+        // AI Analysis (Simple Simulation)
+        document.getElementById('analyze-btn').addEventListener('click', () => {
+            const deducedClues = Array.from(deductionArea.querySelectorAll('.clue')).map(div => div.dataset.id);
+            let analysis = 'AI Analyzing...\n';
+            
+            // Simulate probabilistic matching
+            deducedClues.forEach(id => {
+                const clue = clues.find(c => c.id === id);
+                const confidence = Math.floor(Math.random() * 50) + 50; // 50-100%
+                const bias = Math.random() > 0.8 ? ' (Possible AI bias detected)' : '';
+                analysis += `${clue.text}: Matches suspect ${clue.connection} with ${confidence}% confidence.${bias}\n`;
+            });
+
+            if (deducedClues.length === 0) {
+                analysis += 'No clues to analyze. Gather more evidence.';
+            }
+
+            document.getElementById('ai-analysis').textContent = analysis;
+        });
+
+        // Suspect Chat
+        const messages = document.getElementById('messages');
+        document.getElementById('share-btn').addEventListener('click', () => {
+            const suspectId = document.getElementById('suspect-select').value;
+            const clueText = document.getElementById('share-input').value.toLowerCase();
+            const suspect = suspects[suspectId];
+            
+            let response = suspect.responses.default;
+            for (const key in suspect.responses) {
+                if (clueText.includes(key)) {
+                    response = suspect.responses[key];
+                    break;
+                }
+            }
+
+            addMessage(`You to ${suspect.name}: Sharing clue - ${clueText}`);
+            addMessage(`${suspect.name}: ${response}`);
+            document.getElementById('share-input').value = '';
+        });
+
+        function addMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.textContent = text;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Solve the Case
+        document.getElementById('solve-btn').addEventListener('click', () => {
+            const deducedClues = Array.from(deductionArea.querySelectorAll('.clue')).map(div => div.dataset.id).sort();
+            const correct = correctDeduction.sort();
+            const result = document.getElementById('result');
+            
+            if (JSON.stringify(deducedClues) === JSON.stringify(correct)) {
+                result.textContent = 'Case Solved! Lady Eliza is the culprit. Well done, detective.';
+                result.style.color = '#00ff00';
+            } else {
+                result.textContent = 'Incorrect deduction. Review the clues and try again.';
+                result.style.color = '#ff0000';
+            }
+        });
+
+        // End clue event listeners (remove drag after drop if needed)
+        clueBoard.addEventListener('dragend', e => e.target.classList.remove('dragging'));
+    </script>
+</body>
+</html>
